@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaPipe Object Detection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        button.secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        button.secondary:hover:not(:disabled) {
+            background: #e0e0e0;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        input[type="file"] {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .video-container {
+            width: 100%;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            min-height: 300px;
+        }
+
+        #video {
+            display: none;
+        }
+
+        #canvas {
+            width: 100%;
+            height: auto;
+            display: block;
+            background: #000;
+        }
+
+        .stats {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .stat-value {
+            color: #333;
+        }
+
+        .detections {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .detection-item {
+            background: white;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .detection-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .detection-label {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 4px;
+        }
+
+        .detection-confidence {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .status.loading {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(0, 0, 0, 0.1);
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 MediaPipe Object Detection</h1>
+            <p>Real-time object detection using your webcam or uploaded images</p>
+        </div>
+
+        <div class="content">
+            <div id="status"></div>
+
+            <div class="controls">
+                <button id="startBtn">📹 Start Webcam</button>
+                <button id="stopBtn" disabled>⏹️ Stop</button>
+                <button id="captureBtn" disabled>📸 Capture</button>
+            </div>
+
+            <div class="input-group">
+                <input type="file" id="imageInput" accept="image/*" />
+                <button id="uploadBtn" class="secondary">Upload Image</button>
+            </div>
+
+            <div class="video-container">
+                <video id="video" style="display:none;" autoplay playsinline></video>
+                <canvas id="canvas"></canvas>
+            </div>
+
+            <div class="stats">
+                <div class="stat-row">
+                    <span class="stat-label">Detections:</span>
+                    <span class="stat-value" id="detectionCount">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">FPS:</span>
+                    <span class="stat-value" id="fps">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Inference Time:</span>
+                    <span class="stat-value" id="inferenceTime">0ms</span>
+                </div>
+            </div>
+
+            <div>
+                <h3 style="margin-bottom: 15px; color: #333;">Detected Objects</h3>
+                <div class="detections" id="detections">
+                    <p style="color: #999; text-align: center;">No detections yet</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import vision from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0';
+
+        const { ObjectDetector, FilesetResolver } = vision;
+
+        let objectDetector;
+        let video;
+        let canvas;
+        let ctx;
+        let isRunning = false;
+        let lastFrameTime = Date.now();
+        let frameCount = 0;
+
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const captureBtn = document.getElementById('captureBtn');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const imageInput = document.getElementById('imageInput');
+        const statusEl = document.getElementById('status');
+        const detectionCountEl = document.getElementById('detectionCount');
+        const fpsEl = document.getElementById('fps');
+        const inferenceTimeEl = document.getElementById('inferenceTime');
+        const detectionsEl = document.getElementById('detections');
+
+        function showStatus(message, type = 'loading') {
+            statusEl.className = `status ${type}`;
+            statusEl.innerHTML = type === 'loading' 
+                ? `<span class="loading-spinner"></span>${message}` 
+                : message;
+        }
+
+        async function initializeDetector() {
+            try {
+                showStatus('Initializing object detection model...', 'loading');
+
+                const filesetResolver = await FilesetResolver.forVisionTasks(
+                    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm'
+                );
+
+                objectDetector = await ObjectDetector.createFromOptions(filesetResolver, {
+                    baseOptions: {
+                        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float32/1/efficientdet_lite0.tflite'
+                    },
+                    scoreThreshold: 0.5,
+                    runningMode: 'VIDEO'
+                });
+
+                video = document.getElementById('video');
+                canvas = document.getElementById('canvas');
+                ctx = canvas.getContext('2d');
+
+                showStatus('✅ Model loaded successfully!', 'success');
+                startBtn.disabled = false;
+            } catch (error) {
+                console.error('Error initializing detector:', error);
+                showStatus(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function startWebcam() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: { ideal: 1280 }, height: { ideal: 720 } } 
+                });
+
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    isRunning = true;
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    captureBtn.disabled = false;
+                    detectFrame();
+                };
+            } catch (error) {
+                showStatus(`❌ Webcam error: ${error.message}`, 'error');
+            }
+        }
+
+        function stopWebcam() {
+            isRunning = false;
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            captureBtn.disabled = true;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            statusEl.textContent = '';
+        }
+
+        function detectFrame() {
+            if (!isRunning || !objectDetector) return;
+
+            const startTime = performance.now();
+            const detections = objectDetector.detectForVideo(video, performance.now());
+            const endTime = performance.now();
+
+            inferenceTimeEl.textContent = (endTime - startTime).toFixed(2) + 'ms';
+
+            drawDetections(detections.detections);
+            updateDetectionsList(detections.detections);
+
+            // Calculate FPS
+            frameCount++;
+            const now = Date.now();
+            if (now - lastFrameTime > 1000) {
+                fpsEl.textContent = frameCount;
+                frameCount = 0;
+                lastFrameTime = now;
+            }
+
+            requestAnimationFrame(detectFrame);
+        }
+
+        function drawDetections(detections) {
+            // Draw the video frame on the canvas
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            detections.forEach(detection => {
+                const bbox = detection.boundingBox;
+                const x = bbox.originX;
+                const y = bbox.originY;
+                const width = bbox.width;
+                const height = bbox.height;
+
+                // Draw bounding box
+                ctx.strokeStyle = '#00FF00';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x, y, width, height);
+
+                // Draw label background
+                const label = `${detection.categories[0].categoryName} ${(detection.categories[0].score * 100).toFixed(1)}%`;
+                ctx.fillStyle = '#00FF00';
+                const textWidth = ctx.measureText(label).width;
+                ctx.fillRect(x, y - 30, textWidth + 10, 25);
+
+                // Draw label text
+                ctx.fillStyle = '#000000';
+                ctx.font = '16px Arial';
+                ctx.fillText(label, x + 5, y - 10);
+            });
+
+            detectionCountEl.textContent = detections.length;
+        }
+
+        function updateDetectionsList(detections) {
+            if (detections.length === 0) {
+                detectionsEl.innerHTML = '<p style="color: #999; text-align: center;">No objects detected</p>';
+                return;
+            }
+
+            detectionsEl.innerHTML = detections.map(detection => `
+                <div class="detection-item">
+                    <div class="detection-label">${detection.categories[0].categoryName}</div>
+                    <div class="detection-confidence">
+                        Confidence: ${(detection.categories[0].score * 100).toFixed(2)}%
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function handleImageUpload() {
+            const file = imageInput.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const img = new Image();
+                img.onload = async () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+
+                    if (objectDetector) {
+                        const startTime = performance.now();
+                        const detections = objectDetector.detect(img);
+                        const endTime = performance.now();
+
+                        inferenceTimeEl.textContent = (endTime - startTime).toFixed(2) + 'ms';
+                        drawDetections(detections.detections);
+                        updateDetectionsList(detections.detections);
+                        showStatus('✅ Detection complete!', 'success');
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        startBtn.addEventListener('click', startWebcam);
+        stopBtn.addEventListener('click', stopWebcam);
+        uploadBtn.addEventListener('click', handleImageUpload);
+
+        // Initialize on load
+        initializeDetector();
+    </script>
+</body>
+</html>
